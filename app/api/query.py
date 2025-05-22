@@ -9,11 +9,9 @@ router = APIRouter()
 
 
 @router.post(
-    "/",
+    "",
     summary="Process a user query",
-    description="Receives a user query and returns a processed answer. "
-    "This endpoint is a placeholder and will require "
-    "integration with a backend query processing system (e.g., RAG, LLM).",
+    description="Receives a user query and returns a SQL query and results.",
     response_model=QueryResponse,
     tags=["Query Handling"],
 )
@@ -24,35 +22,22 @@ async def process_query(request: QueryRequest = Body(...)):
 
     - **query_text**: The user's query. Must be a non-empty string.
     """
-    # Pydantic's `min_length=1` handles empty strings.
-    # Adding an explicit check for strings containing only whitespace.
     if not request.query.strip():
         raise HTTPException(
             status_code=400,
             detail="Query text cannot be empty or contain only whitespace.",
         )
 
-    # Get sql query
     sql_query = get_sql_query(request.query)
     if not sql_query:
-        raise HTTPException(
-            status_code=400,
-            detail="Unable to process the query.",
-        )
-
+        raise ValueError("No results found.")
     result = run_query(sql_query)
-    if not result:
-        raise HTTPException(
-            status_code=400,
-            detail="Unable to process the query.",
-        )
 
-    # Return the result as a QueryResponse
     return QueryResponse(
         results=result,
-        sql=sql_query,
+        sql_query=sql_query,
     )
 
 
 # to use:
-# curl -X POST "http://localhost:8000/api/" -H "accept: application/json" -H "Content-Type: application/json" -d '{"query": "what are the most common nouns in the pauline epistles?"}'
+# curl -X POST "http://localhost:8000/api/query" -H "accept: application/json" -H "Content-Type: application/json" -d '{"query": "what are the most common nouns in the pauline epistles?"}'

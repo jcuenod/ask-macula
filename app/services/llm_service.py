@@ -1,9 +1,43 @@
 import os
-from cerebras.cloud.sdk import Cerebras
+from requests import post
 
-client = Cerebras(api_key=os.environ.get("CEREBRAS_API_KEY"))
+API_BASE = os.environ.get("PROVIDER_URL")
+MODEL = os.environ.get("MODEL")
+API_KEY = os.environ.get("API_KEY")
 
-system_prompt = """
+
+# we're going to use requests instead of cerebras
+def get_llm_response(
+    messages: list,
+    provider_url: str = API_BASE,
+    model: str = MODEL,
+    api_key: str = API_KEY,
+    stream: bool = False,
+    temperature: float = 0.7,
+    max_tokens: int = 64000,
+):
+    """
+    Get a response from the LLM using the OpenRouter API.
+    """
+    url = f"{provider_url}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "model": model,
+        "messages": messages,
+        "stream": stream,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    response = post(url, headers=headers, json=data)
+    r = response.json()
+    print(r)
+    return r
+
+
+sql_system_prompt = """
 Here are the first few lines of a tsv file (19mb). The file is macula Greek tagging for the new testament.
 
 ```
@@ -32,7 +66,7 @@ n40001002012	MAT 1:2!12	v	verb		fathered	生	begat	ἐγέννησεν	 	γεν�
 
 I have imported it into duckdb. Note that ref is like `MAT 1:2!7` where the first 3 chars are the (usfm) book name then the chapter/verse reference follows (1:2) and finally the "!7" marks the word or "word-part" in the verse.
 
-**Note**: The `role` column refers to the grammatical function of the word. The `lemma` column is the base form of the word, and the `text` column is the actual word in the text. The `strong` column is a reference to the Strong's number for the lemma.
+**Note**: The `role` column refers to the grammatical function of the word. The `lemma` column is the base form of the word, and the `text` column is the actual word in the text. So the `lemma` column is one of the most useful columns to consider when analyzing the data. The `normalized` column is a normalized form of the lemma, which can be useful for analysis. The `strong` column is a reference to the Strong's number for the lemma.
 
 USFM Book Names:
 
@@ -74,26 +108,59 @@ select split_part(ref, ':', 1) as reference, part_of_speech, count(part_of_speec
 
 # Instructions
 
-Respond to the user with sql required to answers the question. Carefully think through the question before answering. Use `<think> ... </think>` tags for internal reasoning. When you are done thinking, write only your answer in a ```sql ... ``` fence. Never write additional commentary.
+Respond to the user with sql required to answers the question. Carefully think through the question before answering. Write only your answer in a ```sql ... ``` fence. Never write additional commentary.
 
 Unless told otherwise, it is preferable to order your results by "macula_id" (the canonical order), but unless specifically asked you probably shouldn't return this column. If you group results by book, chapter, or verse, order your results **canonically** (not numerically) unless told otherwise.
 
-Many queries will require you to consider the lemma or a gloss. Think carefully about which to use. Do not make up lemmas that are not provided by the user or the system.
+Many queries will require you to consider the lemma or a gloss. Think carefully about which to use. Do not make up lemmas that are not provided by the user or the system. Never use strongs numbers that are not provided by the user or the system. For lemmas that are not provided by the user, you can use nested queries or CTEs to get the relevant lemma (or lemmas).
+
+When using aggregate functions, provide appropriate alias names for the columns.
+"""
+
+js_system_prompt = """
+Your task is choose an appropriate way to visualize results of a sql query using 'echarts-for-react'.
+
+You will be provided with the user's query for context and a SQL query that answers it (and indicates the shape of the results, which will be a list of objects the keys corresponding to the columns returned).
+
+Write the **body** of a javascript function that will produce a `ReactECharts` options object that will display the results of the SQL query in a way that is appropriate for the data. The data from the sql query will be passed into the function as the first and only parameter. In the client, it will be called like this:
+
+```javascript
+const fun = new Function('results', yourFunctionBody)
+const echartsObject = fun(queryResults)
+```
+
+This means that you should not include the function signature or any imports in your code. You should also not include any `console.log` statements or other debugging code. The function should return the echarts options object. It can be like (remember to wrap it in a ```javascript ... ``` code fence):
+
+```javascript
+const data = results.map((result) => { /* code to process results */ })
+const echartsOptions = {
+    title: {
+        text: 'Your Title',
+    },
+    // code to map results to echarts options
+}
+return echartsOptions
+```
+
+Note that `return` is used because the function is called with `new Function(...)` in the client code. Your function should return the echarts options object. Carefully consider the nature of the user's question to determine how best results should be visualized. If the most appopriate display of the data is simply to tabulate the results of the sql query, you should leave the code fence empty and return an empty string. But it would be ideal to chart the results in some way (the tabulated results will be available irrespective). Remember that your code needs to work in the `Function` constructor! Do not write any additional commentary or explanation.
 """
 
 
-def get_sql_query_from_response(response: str) -> str:
+def get_code_fence_from_response(response: str, code_kind: str) -> str:
     """
     This function extracts the SQL query from the response string.
     It assumes the SQL query is enclosed in triple backticks (```).
     """
-    # Find the start and end of the SQL code block
-    start = response.find("```sql") + len("```sql")
-    end = response.find("```", start)
+    # Find the start and end of the code block
+    code_start = response.find(f"```{code_kind}") + len(f"```{code_kind}")
+    code_end = response.find("```", code_start)
 
-    # Extract and return the SQL query
-    sql_query = response[start:end].strip()
-    return sql_query
+    code_block = response[code_start:code_end].strip()
+
+    if not code_block:
+        raise ValueError("No code query found in the response.")
+
+    return code_block
 
 
 def get_sql_query(user_query: str) -> str:
@@ -101,20 +168,31 @@ def get_sql_query(user_query: str) -> str:
     This function generates a SQL query to find the most common nouns in the Pauline Epistles.
     It uses the Cerebras API to get the SQL query based on the provided system prompt.
     """
-    # Initialize Cerebras client
-
-    # Create a chat completion stream with the system prompt and user query
-
-    stream = client.chat.completions.create(
+    response = get_llm_response(
         messages=[
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": sql_system_prompt},
             {"role": "user", "content": user_query},
         ],
-        model="qwen-3-32b",
-        stream=False,
     )
 
-    response = stream.choices[0].message.content
-    print(response)
-    print(get_sql_query_from_response(response))
-    return get_sql_query_from_response(response)
+    response = response["choices"][0]["message"]["content"]
+    return get_code_fence_from_response(response, "sql")
+
+
+def get_js_code(user_query: str, sql_query: str) -> str:
+    """
+    This function generates a SQL query to find the most common nouns in the Pauline Epistles.
+    It uses the Cerebras API to get the SQL query based on the provided system prompt.
+    """
+    query = f"User query: {user_query}\n\nSQL:\n\n```sql\n{sql_query}\n```"
+
+    response = get_llm_response(
+        messages=[
+            {"role": "system", "content": js_system_prompt},
+            {"role": "user", "content": query},
+        ],
+    )
+
+    response = response["choices"][0]["message"]["content"]
+
+    return get_code_fence_from_response(response, "javascript")

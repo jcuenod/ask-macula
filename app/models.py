@@ -8,4 +8,13 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     results: List[Dict[str, Any]]
-    sql: str
+    sql_query: str
+
+
+class VisualizationRequest(BaseModel):
+    query: str
+    sql_query: str
+
+
+class VisualizationResponse(BaseModel):
+    js_code: str

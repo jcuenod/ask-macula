@@ -1,29 +1,34 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware  # Import CORSMiddleware
+
+# FileResponse is no longer needed as serve_index is removed
 from pathlib import Path
 from app.api.query import router as query_router
+from app.api.visualize import router as vis_router
 
 # Create app instance
 app = FastAPI()
-app.include_router(query_router, prefix="/api", tags=["API"])
 
+# Add CORSMiddleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
-# when the user visits the root URL, serve the index.html file from the static directory
-@app.get("/", include_in_schema=False)
-async def serve_index():
-    """
-    Serve the index.html file from the static directory when the root URL is accessed.
-    """
-    static_dir = Path(__file__).parent.parent / "app" / "static"
-    index_html_path = static_dir / "index.html"
-    return FileResponse(index_html_path)
+# Include the API router before mounting static files to ensure API routes have priority
+app.include_router(query_router, prefix="/api/query", tags=["API"])
+app.include_router(vis_router, prefix="/api/visualize", tags=["API"])
 
-
-# Serve static files from the static directory
+# Mount static files directory
 app.mount(
-    "/static",
-    StaticFiles(directory=Path(__file__).parent.parent / "app" / "static"),
+    "/",  # Mount at the root path
+    StaticFiles(
+        directory=Path(__file__).parent / "static", html=True
+    ),  # html=True enables serving index.html for directory paths
     name="static",
 )
 

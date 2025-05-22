@@ -1,28 +1,36 @@
-# Use an official Python runtime as a parent image
-FROM python:3.10-slim
+# Stage 1: Build the frontend (client)
+FROM node:24-alpine AS client_builder_stage
 
-# Set environment variables
+WORKDIR /client
+
+COPY client/package.json client/package-lock.json* ./
+
+RUN npm ci
+
+COPY client/ ./
+
+# Builds to /client/dist
+RUN npm run build
+
+# Stage 2: Build the backend (server) and serve the frontend
+FROM python:3.13-slim
+
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies if any (DuckDB usually doesn't require extra for pip install)
-# RUN apt-get update && apt-get install -y --no-install-recommends some-package && rm -rf /var/lib/apt/lists/*
+COPY --from=client_builder_stage /client/dist /app/static
 
-# Copy the requirements file into the container
 COPY requirements.txt .
 
-# Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code into the container
-COPY . .
+COPY app .
 
-# Make port 8000 available to the world outside this container
 EXPOSE 8000
 
-# Define the command to run the application
-# Replace `main:app` with your_module:your_fastapi_instance if different
+WORKDIR /
+
+# /app/main.py + `app = FastAPI()` => "app.main:app"
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
