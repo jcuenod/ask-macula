@@ -6,14 +6,13 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { type DataRow } from "../services/apiService";
+import { useHistory } from "../contexts/HistoryContext";
 
-interface ResultsTableProps {
-  data: DataRow[];
-}
+export function ResultsTable() {
+  const { currentQuery } = useHistory();
+  const data = currentQuery?.results || [];
 
-export function ResultsTable({ data }: ResultsTableProps) {
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     return (
       <p className="text-muted-foreground p-4 text-center">
         No data to display, or query returned empty results.
@@ -24,12 +23,12 @@ export function ResultsTable({ data }: ResultsTableProps) {
   const headers = Object.keys(data[0]);
 
   return (
-    <div className="border rounded-md overflow-x-auto">
+    <div className="mt-2 border rounded-md overflow-x-auto">
       <Table>
         <TableHeader className="font-bold border-b">
-          <TableRow>
+          <TableRow className="bg-muted/30">
             {headers.map((header) => (
-              <TableHead key={header}>
+              <TableHead key={header} className="font-bold">
                 {header
                   .replace(/_/g, " ")
                   .replace(/\b\w/g, (l) => l.toUpperCase())}

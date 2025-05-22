@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CollapsibleDivider } from "./CollapsibleDivider";
-import { Archive } from "lucide-react"; // Import X icon
-import { type HistoryEntry } from "../lib/historyManager";
+import { Archive } from "lucide-react";
+import { useHistory } from "../contexts/HistoryContext"; // Import useHistory
 import {
   Dialog,
   DialogClose,
@@ -18,20 +18,11 @@ const MIN_SIDEBAR_WIDTH = 180;
 const DEFAULT_SIDEBAR_WIDTH = 256;
 const MAX_SIDEBAR_WIDTH = 500;
 
-interface HistorySidebarProps {
-  historyEntries: HistoryEntry[];
-  onSelectHistoryItem: (item: HistoryEntry) => void;
-  onClearHistory: () => void;
-  onDeleteHistoryItem: (entryId: string) => void; // Add new prop
-  activeHistoryItemId: string | null;
-}
+export function HistorySidebar() {
+  const { queries, currentQuery, setQuery, deleteQuery } = useHistory();
 
-export function HistorySidebar({
-  historyEntries,
-  onSelectHistoryItem,
-  onDeleteHistoryItem,
-  activeHistoryItemId,
-}: HistorySidebarProps) {
+  const activeHistoryItemId = currentQuery?.id || null;
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const [isDragging, setIsDragging] = useState(false);
@@ -52,17 +43,15 @@ export function HistorySidebar({
     );
     setSidebarWidth(newWidth);
     if (!isSidebarOpen && newWidth > 0) {
-      setIsSidebarOpen(true); // Automatically open if dragged from collapsed state
+      setIsSidebarOpen(true);
     }
   };
 
   const handleDividerDragEnd = () => {
     setIsDragging(false);
-    // Future: could save sidebarWidth to localStorage here
     if (sidebarWidth < MIN_SIDEBAR_WIDTH) {
-      // If drag resulted in a very small width, consider it a collapse
       setIsSidebarOpen(false);
-      setSidebarWidth(DEFAULT_SIDEBAR_WIDTH); // Reset to default for next open
+      setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
     }
   };
 
@@ -76,21 +65,22 @@ export function HistorySidebar({
       >
         <div className="flex justify-between items-center m-4">
           <h2 className="ml-1 text-xl font-semibold">History</h2>
+          {/* TODO: Add Clear History Button here, using clearHistory from context */}
         </div>
-        {historyEntries.length === 0 ? (
+        {queries.length === 0 ? (
           <p className="px-5 text-sm text-muted-foreground">
             No history available. Start a new query in the main panel.
           </p>
         ) : (
           <div className="h-[calc(100%-4rem)] mb-4 px-4 overflow-y-auto">
             <ul className="space-y-2 mr-2 mb-4">
-              {historyEntries.map((entry) => (
+              {queries.map((entry) => (
                 <li
                   key={entry.id}
                   className="relative flex flex-row w-full p-0 items-center rounded group hover:bg-muted"
                 >
                   <button
-                    onClick={() => onSelectHistoryItem(entry)}
+                    onClick={() => setQuery(entry)} // Use prop from AppInternal
                     className={`flex-1 transition-all p-2 min-w-0 overflow-hidden text-left focus:outline-none duration-200 ease-in-out max-w-100 group-hover:max-w-[calc(100%_-_2.5rem)] ${
                       entry.id === activeHistoryItemId ? "font-bold" : ""
                     }`}
@@ -107,7 +97,7 @@ export function HistorySidebar({
                     <DialogTrigger asChild>
                       <button
                         className="absolute top-0 right-0 bottom-0 bg-transparent hover:bg-red-100 w-0 opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer group-hover:w-10 transition-all duration-200 ease-in-out text-red-800 hover:text-red-600 active:text-red-400 flex items-center justify-center"
-                        onClick={(e) => e.stopPropagation()} // Prevent selecting the item, dialog handles action
+                        onClick={(e) => e.stopPropagation()}
                         title="Delete query"
                       >
                         <Archive className="h-5 w-5" />
@@ -134,7 +124,7 @@ export function HistorySidebar({
                           variant={"destructive"}
                           onClick={(e) => {
                             e.stopPropagation();
-                            onDeleteHistoryItem(entry.id);
+                            deleteQuery(entry.id); // Use from context
                           }}
                         >
                           Delete
