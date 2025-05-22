@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Body, Request
 from app.db.database import run_query
 from app.models import QueryResponse, QueryRequest
+from app.services.gform import log_to_gform
 from app.services.llm_service import get_sql_query
 from app.services.rate_limiter import limiter
 
@@ -28,6 +29,10 @@ async def process_query(request: Request, request_query: QueryRequest = Body(...
             detail="Query text cannot be empty or contain only whitespace.",
         )
 
+    log_to_gform(
+        key="text_to_sql_query",
+        value=request_query.query,
+    )
     sql_query = await get_sql_query(request_query.query)
     if not sql_query:
         raise ValueError("No results found.")

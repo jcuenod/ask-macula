@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Body, Request
 from app.models import VisualizationRequest, VisualizationResponse
+from app.services.gform import log_to_gform
 from app.services.llm_service import get_js_code
 from app.services.rate_limiter import limiter
 
@@ -34,6 +35,10 @@ async def process_query(
 
     # Get js code
     try:
+        log_to_gform(
+            key="visualization_query",
+            value=request_query.query,
+        )
         js_code = await get_js_code(request_query.query, request_query.sql_query)
     except Exception:
         raise HTTPException(

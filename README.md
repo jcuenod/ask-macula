@@ -4,13 +4,18 @@ You can run this as a docker container or you can just run it locally. Either wa
 
 ## Environment Variables
 
-| Variable | Description                                                                |
-| -------- | -------------------------------------------------------------------------- |
-| API_BASE | The base URL for the provider. You can use any openai compatible provider. |
-| MODEL    | The model to use.                                                          |
-| API_KEY  | Your provider API key.                                                     |
+| Variable            | Description                                                                |
+| ------------------- | -------------------------------------------------------------------------- |
+| API_BASE            | The base URL for the provider. You can use any openai compatible provider. |
+| MODEL               | The model to use.                                                          |
+| API_KEY             | Your provider API key.                                                     |
+| _GFORM_URL_         | URL for the Google Form where we log user queries. _[Optional]_            |
+| _GFORM_KEY_FIELD_   | The field name for the key in the Google Form. _[Optional]_                |
+| _GFORM_VALUE_FIELD_ | The field name for the value in the Google Form. _[Optional]_              |
 
 I've also had really good results from Gemini 2.5 flash preview. I was disappointed with openrouter's deepseek r1 zero model. I would recommend using a thinking model. The prompts assume that the model reasons separately to the output. I had really good results with qwen-32b on Cerebras (it's got the advantage of being nice and fast), but that included prompting to use `<think />` tags and code to strip them out.
+
+The google form is a poor man's way of logging user queries.
 
 ## Docker
 
